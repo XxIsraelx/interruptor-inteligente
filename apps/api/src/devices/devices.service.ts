@@ -37,6 +37,33 @@ export class DevicesService {
     });
   }
 
+  /** Números do card de resumo da página do aparelho. */
+  async summary(id: string) {
+    await this.get(id);
+    const [today, month, week, first, stats] = await Promise.all([
+      this.consumption.kwhByDevice('day'),
+      this.consumption.kwhByDevice('month'),
+      this.consumption.kwhByDevice('week'),
+      this.consumption.firstReadingInWeek(id),
+      this.consumption.todayStats(id),
+    ]);
+    const t = tariff();
+    const kwhToday = today.get(id) ?? 0;
+    const kwhMonth = month.get(id) ?? 0;
+    const proj = this.consumption.projection(kwhMonth, week.get(id) ?? 0, first);
+    return {
+      tariff: t,
+      kwhToday,
+      kwhMonth,
+      costToday: kwhToday * t,
+      costMonth: kwhMonth * t,
+      avgDailyKwh: proj.avgDailyKwh,
+      projectedKwh: proj.projectedKwh,
+      projectedCost: proj.projectedKwh == null ? null : proj.projectedKwh * t,
+      ...stats,
+    };
+  }
+
   async find(id: string) {
     const [d] = await this.db.select().from(devices).where(eq(devices.id, id));
     return d;

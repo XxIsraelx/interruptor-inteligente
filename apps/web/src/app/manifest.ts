@@ -9,8 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Consumo de energia e controle das suas tomadas',
     start_url: '/',
     display: 'standalone',
-    background_color: '#0b0f14',
-    theme_color: '#0d9488',
+    background_color: '#07090d',
+    theme_color: '#07090d',
     lang: 'pt-BR',
     icons: [
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },

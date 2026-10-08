@@ -1,87 +1,87 @@
 'use client';
 
-import { Activity, CalendarDays, Gauge, Plug } from 'lucide-react';
-import Link from 'next/link';
-import { ConsumptionChart } from '@/components/ConsumptionChart';
-import { DeviceCard } from '@/components/DeviceCard';
+import { Plug } from 'lucide-react';
+import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
+import { BillCard } from '@/components/dashboard/BillCard';
+import { ConsumptionByDevice } from '@/components/dashboard/ConsumptionByDevice';
+import { DeviceTile } from '@/components/dashboard/DeviceTile';
+import { LiveHero } from '@/components/dashboard/LiveHero';
+import { TodayCard } from '@/components/dashboard/TodayCard';
 import { RequireAuth } from '@/components/RequireAuth';
-import { Card, CardHeader, Empty, Stat } from '@/components/ui';
+import { PageHeader } from '@/components/shell/AppShell';
+import { useDevicesContext } from '@/components/shell/DevicesContext';
+import { Card, Empty } from '@/components/ui';
 import { fmt } from '@/lib/format';
-import { useDevices, useOverview } from '@/lib/hooks';
+import { useHouseConsumption, useLive, useOverview } from '@/lib/hooks';
+
+const LIVE_MINUTES = 15;
 
 function Dashboard() {
-  const { devices, error } = useDevices();
-  const { data: ov } = useOverview();
-
-  // Potência total calculada ao vivo a partir dos cards
-  const powerNow = (devices ?? []).reduce((s, d) => s + (d.online && d.relayOn ? d.power ?? 0 : 0), 0);
-  const online = (devices ?? []).filter((d) => d.online).length;
+  const { devices, error, colors } = useDevicesContext();
+  const overview = useOverview();
+  const today = useHouseConsumption('day');
+  const live = useLive(LIVE_MINUTES);
+  const totalToday = (devices ?? []).reduce((s, d) => s + (d.kwhToday ?? 0), 0);
 
   return (
-    <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="p-4">
-          <Gauge className="mb-2 h-4 w-4 text-power" />
-          <Stat label="Potência agora" value={fmt.watts(powerNow)} tone="power" />
-        </Card>
-        <Card className="p-4">
-          <Activity className="mb-2 h-4 w-4 text-accent" />
-          <Stat label="Hoje" value={fmt.kwh(ov?.kwhToday)} sub={fmt.brl(ov?.costToday)} />
-        </Card>
-        <Card className="p-4">
-          <CalendarDays className="mb-2 h-4 w-4 text-accent" />
-          <Stat label="Este mês" value={fmt.kwh(ov?.kwhMonth)} sub={fmt.brl(ov?.costMonth)} />
-        </Card>
-        <Card className="p-4">
-          <Plug className="mb-2 h-4 w-4 text-muted" />
-          <Stat label="Dispositivos" value={devices ? `${online}/${devices.length}` : '—'} sub="online" />
-        </Card>
-      </section>
+    <>
+      <PageHeader title="Visão geral" sub={fmt.longDate()} />
 
-      {error && <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">Erro ao carregar: {error}</p>}
+      {error && <p className="mb-4 rounded-xl border border-critical/30 bg-critical-soft px-4 py-3 text-sm text-red-300">Erro ao carregar: {error}</p>}
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold text-muted">Tomadas</h2>
-        {devices && devices.length === 0 && (
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-12">
+        <div className="md:col-span-2 xl:col-span-6">
+          <LiveHero devices={devices} total={live?.total ?? null} minutes={LIVE_MINUTES} />
+        </div>
+        <div className="xl:col-span-3">
+          <TodayCard overview={overview} hours={today?.buckets ?? null} />
+        </div>
+        <div className="xl:col-span-3">
+          <BillCard overview={overview} />
+        </div>
+      </div>
+
+      <section className="mt-8">
+        <div className="mb-3 flex items-baseline justify-between">
+          <h2 className="text-[15px] font-semibold tracking-tight">Tomadas</h2>
+          {devices && (
+            <span className="text-xs text-muted">
+              {devices.filter((d) => d.online).length} de {devices.length} online
+            </span>
+          )}
+        </div>
+        {devices && devices.length === 0 ? (
           <Card>
             <Empty>
-              Nenhum dispositivo ainda. Ligue o ESP32 (ou ative{' '}
-              <code className="rounded bg-surface-2 px-1">DEMO_SIMULATOR=true</code> na API) e ele aparece aqui sozinho.
+              <Plug className="mx-auto mb-2 h-5 w-5" />
+              Nenhuma tomada ainda. Ligue o ESP32 e ela aparece aqui sozinha.
             </Empty>
           </Card>
+        ) : (
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))]">
+            {(devices ?? []).map((d) => (
+              <DeviceTile
+                key={d.id}
+                device={d}
+                color={colors[d.id]}
+                series={live?.devices[d.id] ?? []}
+                share={totalToday ? (d.kwhToday ?? 0) / totalToday : undefined}
+              />
+            ))}
+            {!devices && [0, 1, 2].map((i) => <div key={i} className="h-[280px] animate-pulse rounded-2xl bg-surface" />)}
+          </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {devices?.map((d) => <DeviceCard key={d.id} device={d} />)}
-        </div>
       </section>
 
-      <section className="grid gap-3 lg:grid-cols-3">
-        <div className="lg:col-span-2">
-          <ConsumptionChart title="Consumo da casa" />
+      <div className="mt-8 grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <ConsumptionByDevice devices={devices} colors={colors} />
         </div>
-        <Card>
-          <CardHeader title="Quem mais consome" sub="No mês" />
-          {ov && ov.ranking.length === 0 && <Empty>Sem dados</Empty>}
-          <ul className="space-y-3 px-5 pb-5">
-            {ov?.ranking.map((r) => (
-              <li key={r.id}>
-                <Link href={`/device?id=${encodeURIComponent(r.id)}`} className="block hover:opacity-80">
-                  <div className="mb-1 flex justify-between gap-2 text-sm">
-                    <span className="truncate">{r.name}</span>
-                    <span className="tabular shrink-0 text-muted">
-                      {fmt.kwh(r.kwhMonth)} · {fmt.brl(r.costMonth)}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-surface-2">
-                    <div className="h-full rounded-full bg-accent" style={{ width: `${Math.max(r.share * 100, 1)}%` }} />
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </section>
-    </div>
+        <div className="xl:col-span-4">
+          <ActivityFeed devices={devices} colors={colors} />
+        </div>
+      </div>
+    </>
   );
 }
 

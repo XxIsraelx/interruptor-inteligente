@@ -20,6 +20,15 @@ export class EventsService {
     return ev;
   }
 
+  /** Atividade da casa toda (todos os aparelhos), mais recente primeiro. */
+  listAll(limit = 30) {
+    return this.db
+      .select()
+      .from(events)
+      .orderBy(desc(events.ts), desc(events.id))
+      .limit(Math.min(limit, 200));
+  }
+
   list(deviceId: string, limit = 50) {
     return this.db
       .select()

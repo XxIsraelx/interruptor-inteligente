@@ -42,6 +42,11 @@ export class DevicesController {
     return this.devices.resetEnergy(id);
   }
 
+  @Get(':id/summary')
+  summary(@Param('id') id: string) {
+    return this.devices.summary(id);
+  }
+
   @Get(':id/events')
   listEvents(@Param('id') id: string, @Query() q: LimitQuery) {
     return this.events.list(id, q.limit);
@@ -54,9 +59,15 @@ export class DevicesController {
 
   @Get(':id/consumption')
   async series(@Param('id') id: string, @Query() q: PeriodQuery) {
-    const rows = await this.consumption.series(id, q.period);
+    const buckets = await this.consumption.series(id, q.period);
     const t = tariff();
-    const total = rows.reduce((s, r) => s + r.kwh, 0);
-    return { period: q.period, tariff: t, totalKwh: total, totalCost: total * t, buckets: rows };
+    const total = buckets.reduce((s, r) => s + r.kwh, 0);
+    return {
+      period: q.period,
+      tariff: t,
+      totalKwh: total,
+      totalCost: total * t,
+      buckets: buckets.map(({ byDevice: _omit, ...b }) => b),
+    };
   }
 }

@@ -4,7 +4,15 @@ import { connect, MqttClient } from 'mqtt';
 import { Db, InjectDb } from '../db/db.module';
 import { devices } from '../db/schema';
 import { brokerAuth, brokerUrl, topicPrefix } from '../mqtt/config';
-import { DEMO_PROFILES, DemoProfile, fridgeRunning, hasAnyReading, seedDemoHistory } from './demo-data';
+import {
+  DEMO_PROFILES,
+  DemoProfile,
+  ensureDemoSchedules,
+  fridgeRunning,
+  hasAnyReading,
+  inverterFactor,
+  seedDemoHistory,
+} from './demo-data';
 
 /**
  * Modo demonstração (sem hardware):
@@ -25,6 +33,7 @@ export class DemoSimulatorService implements OnApplicationBootstrap, OnApplicati
       this.log.log('Banco vazio: gerando 7 dias de histórico de demonstração...');
       await seedDemoHistory(this.db, 7, (m) => this.log.log(m));
     }
+    if (process.env.DEMO_SEED === 'true') await ensureDemoSchedules(this.db, (m) => this.log.log(m));
     if (process.env.DEMO_SIMULATOR !== 'true') return;
 
     // Como o ESP32 real (que guarda o estado na memória), retoma relé e contador do banco
@@ -59,7 +68,8 @@ export class DemoSimulatorService implements OnApplicationBootstrap, OnApplicati
       const now = Date.now();
       const v = 127 + (Math.random() - 0.5) * 4;
       const active = state.relay && (!p.cycle || fridgeRunning(now));
-      const w = active ? p.watts * (1 + (Math.random() - 0.5) * 2 * p.jitter) : 0;
+      const shape = p.id === 'sim-ar' ? inverterFactor(now) : 1;
+      const w = active ? p.watts * shape * (1 + (Math.random() - 0.5) * 2 * p.jitter) : 0;
       const pf = active ? p.pf : 0;
       state.energy += (w * (now - state.last)) / 3_600_000 / 1000;
       state.last = now;

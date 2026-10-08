@@ -24,3 +24,7 @@ export class PeriodQuery {
 export class LimitQuery {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(500) limit = 50;
 }
+
+export class LiveQuery {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(60) minutes = 15;
+}

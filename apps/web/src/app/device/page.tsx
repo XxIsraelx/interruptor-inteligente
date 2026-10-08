@@ -1,76 +1,123 @@
 'use client';
 
-import { ArrowLeft } from 'lucide-react';
+import { ChevronRight, Settings2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense } from 'react';
-import { ConsumptionChart } from '@/components/ConsumptionChart';
+import { Suspense, useState } from 'react';
+import { ConsumptionChart } from '@/components/device/ConsumptionChart';
+import { InfoCard } from '@/components/device/InfoCard';
+import { MetricTiles } from '@/components/device/MetricTiles';
+import { PowerChart } from '@/components/device/PowerChart';
+import { SchedulesCard } from '@/components/device/SchedulesCard';
+import { SettingsDrawer } from '@/components/device/SettingsDrawer';
+import { SummaryCard } from '@/components/device/SummaryCard';
+import { Timeline } from '@/components/device/Timeline';
 import { DeviceIcon } from '@/components/DeviceIcon';
-import { DeviceSettings } from '@/components/DeviceSettings';
-import { EventsList } from '@/components/EventsList';
-import { PowerChart } from '@/components/PowerChart';
-import { RelayButton } from '@/components/RelayButton';
+import { RelaySwitch } from '@/components/RelaySwitch';
 import { RequireAuth } from '@/components/RequireAuth';
-import { SchedulesPanel } from '@/components/SchedulesPanel';
-import { Card, Stat, StatusPill } from '@/components/ui';
+import { useDevicesContext } from '@/components/shell/DevicesContext';
+import { Card, Empty, Skeleton, StatusPill } from '@/components/ui';
+import { withAlpha } from '@/lib/colors';
 import { fmt } from '@/lib/format';
-import { useDevice, useTick } from '@/lib/hooks';
+import { useLive, useTick } from '@/lib/hooks';
 
 function DeviceView({ id }: { id: string }) {
-  const { device, setDevice, error } = useDevice(id);
+  const { devices, colors, reload } = useDevicesContext();
+  const live = useLive(15);
+  const [settings, setSettings] = useState(false);
   useTick(5000);
 
-  if (error) return <p className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger">{error}</p>;
-  if (!device) return null;
+  const device = devices?.find((d) => d.id === id);
+  if (!devices)
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-16 w-80" />
+        <Skeleton className="h-36" />
+        <Skeleton className="h-80" />
+      </div>
+    );
+  if (!device)
+    return (
+      <Card>
+        <Empty>
+          Dispositivo não encontrado.{' '}
+          <Link href="/" className="text-accent hover:underline">
+            Voltar para a visão geral
+          </Link>
+        </Empty>
+      </Card>
+    );
 
-  const on = device.online && device.relayOn;
-  const val = <T,>(v: T) => (device.online ? v : null);
+  const color = colors[device.id];
+  const active = device.online && device.relayOn;
 
   return (
     <div className="space-y-4">
-      <Link href="/" className="inline-flex items-center gap-1 text-sm text-muted hover:text-text">
-        <ArrowLeft className="h-4 w-4" /> Voltar
-      </Link>
+      <nav className="flex items-center gap-1.5 text-sm text-muted" aria-label="Navegação">
+        <Link href="/" className="hover:text-text">
+          Visão geral
+        </Link>
+        <ChevronRight className="h-3.5 w-3.5" />
+        <span className="truncate text-text-2">{device.name}</span>
+      </nav>
 
-      <Card className="p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex min-w-0 items-center gap-4">
-            <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-2xl ${on ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-muted'}`}>
-              <DeviceIcon name={device.icon} className="h-7 w-7" />
-            </span>
-            <div className="min-w-0">
-              <h1 className="truncate text-xl font-semibold">{device.name}</h1>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted">
-                <StatusPill online={device.online} />
-                {device.location && <span>{device.location}</span>}
-                <span>· última leitura {fmt.ago(device.lastSeenAt)}</span>
-                {device.rssi != null && device.online && <span>· Wi-Fi {device.rssi} dBm</span>}
-              </div>
+      <header className="flex flex-wrap items-center justify-between gap-4 pb-2">
+        <div className="flex min-w-0 items-center gap-4">
+          <span
+            className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl"
+            style={{ background: withAlpha(color, active ? 0.16 : 0.08), color: active ? color : '#7b889a' }}
+          >
+            <DeviceIcon name={device.icon} className="h-7 w-7" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-[28px]">{device.name}</h1>
+              <StatusPill online={device.online} />
             </div>
+            <p className="mt-1 text-sm text-muted">
+              {device.location && <>{device.location} · </>}
+              última leitura {fmt.ago(device.lastSeenAt)}
+            </p>
           </div>
-          <RelayButton device={device} size="lg" />
         </div>
+        <div className="flex items-center gap-3">
+          <RelaySwitch device={device} size="lg" showLabel />
+          <button
+            onClick={() => setSettings(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm font-medium text-text-2 transition hover:border-border-strong hover:text-text"
+          >
+            <Settings2 className="h-4 w-4" />
+            <span className="hidden sm:inline">Configurar</span>
+          </button>
+        </div>
+      </header>
 
-        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
-          <Stat label="Potência" value={fmt.watts(val(device.relayOn ? device.power : 0))} tone="power" />
-          <Stat label="Tensão" value={fmt.volts(val(device.voltage))} />
-          <Stat label="Corrente" value={fmt.amps(val(device.relayOn ? device.current : 0))} />
-          <Stat label="Energia (sensor)" value={fmt.kwh(device.energy)} tone="accent" />
-          <Stat label="Frequência" value={fmt.hz(val(device.frequency))} />
-          <Stat label="Fator de potência" value={fmt.pf(val(device.powerFactor))} />
+      <MetricTiles device={device} color={color} series={live?.devices[device.id] ?? []} />
+
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <PowerChart deviceId={device.id} color={color} />
         </div>
-      </Card>
+        <div className="xl:col-span-4">
+          <SummaryCard device={device} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-12">
+        <div className="xl:col-span-8">
+          <ConsumptionChart deviceId={device.id} color={color} />
+        </div>
+        <div className="xl:col-span-4">
+          <Timeline deviceId={device.id} />
+        </div>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <PowerChart deviceId={id} />
-        <ConsumptionChart deviceId={id} />
+        <SchedulesCard deviceId={device.id} />
+        <InfoCard device={device} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <EventsList deviceId={id} />
-        <SchedulesPanel deviceId={id} />
-        <DeviceSettings device={device} onSaved={(d) => setDevice((cur) => ({ ...(cur ?? d), ...d }))} />
-      </div>
+      <SettingsDrawer device={device} open={settings} onClose={() => setSettings(false)} onSaved={() => reload()} />
     </div>
   );
 }

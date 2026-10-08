@@ -59,14 +59,23 @@ export interface Schedule {
 }
 
 export interface Overview {
+  timezone: string;
   tariff: number;
   devices: number;
   online: number;
+  on: number;
   powerNow: number;
+  avgVoltage: number | null;
   kwhToday: number;
   kwhMonth: number;
   costToday: number;
   costMonth: number;
+  avgDailyKwh: number | null;
+  projectedKwh: number | null;
+  projectedCost: number | null;
+  monthProgress: number;
+  dayOfMonth: number;
+  daysInMonth: number;
   ranking: { id: string; name: string; kwhMonth: number; costMonth: number; share: number }[];
 }
 
@@ -78,10 +87,50 @@ export interface PowerPoint {
   current: number | null;
 }
 
+export type Period = 'day' | 'week' | 'month';
+
+export interface ConsumptionBucket {
+  bucket: string;
+  label: string;
+  future: boolean;
+  kwh: number;
+  byDevice?: Record<string, number>;
+}
+
 export interface ConsumptionSeries {
-  period: 'day' | 'week' | 'month';
+  period: Period;
   tariff: number;
   totalKwh: number;
   totalCost: number;
-  buckets: { bucket: string; kwh: number }[];
+  buckets: ConsumptionBucket[];
+}
+
+export interface HouseConsumption extends ConsumptionSeries {
+  devices: { id: string; name: string; kwh: number; cost: number; share: number }[];
+}
+
+export interface LivePoint {
+  t: number; // epoch ms
+  p: number; // W
+}
+
+export interface LiveData {
+  binSeconds: number;
+  minutes: number;
+  devices: Record<string, LivePoint[]>;
+  total: LivePoint[];
+}
+
+export interface DeviceSummary {
+  tariff: number;
+  kwhToday: number;
+  kwhMonth: number;
+  costToday: number;
+  costMonth: number;
+  avgDailyKwh: number | null;
+  projectedKwh: number | null;
+  projectedCost: number | null;
+  onSecondsToday: number;
+  peakTodayW: number | null;
+  peakTodayAt: string | null;
 }

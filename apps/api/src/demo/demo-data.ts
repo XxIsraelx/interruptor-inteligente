@@ -1,6 +1,6 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
-import { devices, readings } from '../db/schema';
+import { devices, events, readings, schedules } from '../db/schema';
 
 /** Aparelhos falsos usados na demonstração (simulador + histórico). */
 export interface DemoProfile {
@@ -28,6 +28,43 @@ const TZ = () => process.env.TZ || 'America/Sao_Paulo';
 /** Compressor da geladeira: ligado ~60% do tempo, ciclos de alguns minutos. */
 export const fridgeRunning = (t: number) => Math.sin(t / 120_000) > -0.2;
 
+/** Ar-condicionado inverter: a potência sobe e desce suavemente (70% a 100% do nominal). */
+export const inverterFactor = (t: number) => 0.85 + 0.15 * Math.sin(t / 90_000);
+
+/** Rotina de uso dos aparelhos de demonstração (mostra os agendamentos funcionando). */
+export const DEMO_SCHEDULES: { deviceId: string; action: 'ON' | 'OFF'; time: string }[] = [
+  { deviceId: 'sim-ar', action: 'ON', time: '18:00' },
+  { deviceId: 'sim-ar', action: 'OFF', time: '23:00' },
+  { deviceId: 'sim-tv', action: 'ON', time: '19:00' },
+  { deviceId: 'sim-tv', action: 'OFF', time: '23:30' },
+];
+
+/**
+ * Cria a rotina de demonstração para os aparelhos simulados que ainda não têm
+ * agendamento nenhum (e nunca rodaram um) — não recria o que o usuário apagou.
+ */
+export async function ensureDemoSchedules(db: NodePgDatabase<any>, log: (m: string) => void = console.log) {
+  const ids = [...new Set(DEMO_SCHEDULES.map((s) => s.deviceId))];
+  const existing = await db.select({ id: devices.id }).from(devices).where(inArray(devices.id, ids));
+  for (const { id } of existing) {
+    const [hasSchedule] = await db.select({ id: schedules.id }).from(schedules).where(eq(schedules.deviceId, id)).limit(1);
+    const [ranBefore] = await db
+      .select({ id: events.id })
+      .from(events)
+      .where(and(eq(events.deviceId, id), eq(events.type, 'SCHEDULE')))
+      .limit(1);
+    if (hasSchedule || ranBefore) continue;
+    const rows = DEMO_SCHEDULES.filter((s) => s.deviceId === id).map((s) => ({
+      deviceId: id,
+      action: s.action,
+      time: s.time,
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    }));
+    await db.insert(schedules).values(rows);
+    log(`Rotina de demonstração criada para ${id} (${rows.map((r) => `${r.action} ${r.time}`).join(', ')})`);
+  }
+}
+
 /**
  * Gera `days` dias de leituras (1 por minuto) para os aparelhos de demonstração,
  * para os gráficos de histórico já começarem preenchidos.
@@ -51,7 +88,8 @@ export async function seedDemoHistory(db: NodePgDatabase<any>, days = 7, log: (m
       const hour = Number(hourFmt.format(t));
       const on = d.cycle ? fridgeRunning(t) : hour >= d.hours[0] && hour < d.hours[1];
       const voltage = 127 + (Math.random() - 0.5) * 4;
-      const power = on ? d.watts * (1 + (Math.random() - 0.5) * 2 * d.jitter) : 0;
+      const shape = d.id === 'sim-ar' ? inverterFactor(t) : 1;
+      const power = on ? d.watts * shape * (1 + (Math.random() - 0.5) * 2 * d.jitter) : 0;
       energy += (power * stepMs) / 3_600_000 / 1000; // W·ms → kWh
       batch.push({
         deviceId: d.id,

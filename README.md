@@ -54,13 +54,17 @@ Um serviço só (Dockerfile na raiz) + Postgres:
 
 ## O que já funciona
 
-- Dashboard com potência total ao vivo, consumo e custo (R$) de hoje e do mês
-- Card por tomada: W, V, A, kWh do dia, botão liga/desliga (só muda quando o ESP32 confirma)
-- Página do dispositivo: 6 grandezas do PZEM, gráfico de potência (1 h ao vivo / 6 h / 24 h / 7 d),
-  consumo por hora/dia, linha do tempo de eventos
-- Agendamentos (ligar/desligar em horário e dias da semana)
-- Regra de proteção: desliga sozinho acima de X W
-- Ranking de quem mais consome
+- Painel escuro com menu lateral (no celular vira gaveta), usando a tela toda
+- **Consumo agora**: potência da casa ao vivo + gráfico dos últimos 15 minutos
+- **Hoje** (kWh, R$, barras por hora) e **Conta de luz do mês** com previsão no ritmo dos últimos 7 dias
+- Card por tomada: W, V, A, FP, mini-gráfico ao vivo, consumo do dia, % da casa e chave liga/desliga
+  (o estado só muda quando o ESP32 confirma)
+- **Consumo por aparelho**: barras empilhadas por hora/dia (hoje, 7 dias, mês), ranking e visão em tabela
+- **Atividade da casa**: linha do tempo geral (ligou, desligou, offline, automações), ao vivo
+- Página do dispositivo: grandezas do PZEM, potência (1 h ao vivo / 6 h / 24 h / 7 d), consumo,
+  resumo (previsão do mês, pico do dia, tempo em uso), linha do tempo, agendamentos, dados do ESP32
+  e configurações em gaveta (nome, cômodo, ícone, proteção por potência)
+- Agendamentos (ligar/desligar em horário e dias da semana) e proteção: desliga sozinho acima de X W
 - Detecção de offline (Last Will do MQTT + timeout de 30 s)
 - Login por senha única (JWT) na API e no WebSocket; broker MQTT com usuário/senha
 - Histórico compactado (1 leitura/min depois de 2 dias) e apagado após 40 dias
@@ -81,6 +85,10 @@ Um serviço só (Dockerfile na raiz) + Postgres:
 | GET | `/devices/:id/events?limit=50` | linha do tempo |
 | GET/POST | `/devices/:id/schedules` | agendamentos |
 | PATCH/DELETE | `/schedules/:id` | editar / remover agendamento |
-| GET | `/stats/overview` · `/stats/consumption` | visão da casa toda |
+| GET | `/devices/:id/summary` | hoje, mês, previsão, pico e tempo em uso |
+| GET | `/stats/overview` | casa toda + previsão da conta |
+| GET | `/stats/consumption?period=` | consumo por hora/dia com divisão por aparelho |
+| GET | `/stats/live?minutes=15` | potência recente (janelas de 10 s) por aparelho e total |
+| GET | `/events?limit=30` | atividade da casa toda |
 
 WebSocket (Socket.IO, `auth: { token }`): `device:update`, `reading`, `event`.

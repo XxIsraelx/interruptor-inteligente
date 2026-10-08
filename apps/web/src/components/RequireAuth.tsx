@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { getToken } from '@/lib/api';
-import { AppHeader } from './AppHeader';
+import { AppShell } from './shell/AppShell';
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -15,10 +15,5 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }, [router]);
 
   if (!ok) return null;
-  return (
-    <>
-      <AppHeader />
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
-    </>
-  );
+  return <AppShell>{children}</AppShell>;
 }
