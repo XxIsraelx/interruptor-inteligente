@@ -1,0 +1,13 @@
+# Postgres local para desenvolvimento: pnpm db:up
+# (o broker MQTT já vem embutido na API, não precisa de Mosquitto)
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: interruptor
+      POSTGRES_PASSWORD: interruptor
+      POSTGRES_DB: interruptor
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes:
+  pgdata:

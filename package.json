@@ -1,0 +1,16 @@
+{
+  "name": "interruptor-inteligente",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter api --filter web dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm --filter web dev",
+    "build": "pnpm --filter web build && pnpm --filter api build",
+    "start": "pnpm --filter api start",
+    "db:migrate": "pnpm --filter api db:migrate",
+    "db:seed": "pnpm --filter api db:seed",
+    "db:up": "docker compose up -d postgres"
+  }
+}
