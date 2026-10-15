@@ -1,8 +1,9 @@
 #pragma once
 // Copie este arquivo para secrets.h e preencha. (secrets.h não vai para o git)
 
-#define WIFI_SSID "nome-da-sua-rede"
-#define WIFI_PASSWORD "senha-do-wifi"
+// Deixe WIFI_SSID vazio para configurar o Wi-Fi pelo celular (rede "Interruptor-Setup").
+#define WIFI_SSID ""
+#define WIFI_PASSWORD ""
 
 // Local: IP do seu computador rodando "pnpm dev" (broker embutido na API), porta 1883
 // Nuvem (Railway): host e porta do TCP Proxy do serviço, ex. "xxxx.proxy.rlwy.net", 12345,

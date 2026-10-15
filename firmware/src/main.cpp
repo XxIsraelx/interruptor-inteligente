@@ -10,6 +10,7 @@
 #include <PubSubClient.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <WiFiManager.h>
 
 #include <cmath>
 
@@ -117,38 +118,69 @@ void connectMqtt() {
 }
 
 // ---------- Botão local ----------
+// Clique no BOOT: liga/desliga o relé. Segurar 5 s: apaga o Wi-Fi salvo e reabre o portal de configuração.
 
 bool lastButton = HIGH;
 unsigned long lastButtonChange = 0;
+unsigned long pressedAt = 0;
 
 void handleButton() {
   bool b = digitalRead(BUTTON_PIN);
   if (b != lastButton && millis() - lastButtonChange > 50) {
     lastButtonChange = millis();
     lastButton = b;
-    if (b == LOW) {  // apertou
+    if (b == LOW) {
+      pressedAt = millis();
+    } else if (pressedAt && millis() - pressedAt < 3000) {  // clique curto
       applyRelay(!relayOn);
       publishRelayState();
       Serial.printf("[botao] relé %s\n", relayOn ? "ON" : "OFF");
+      pressedAt = 0;
     }
+  }
+  if (b == LOW && pressedAt && millis() - pressedAt > 5000) {
+    Serial.println("[botao] apagando Wi-Fi salvo e reiniciando...");
+    WiFiManager wm;
+    wm.resetSettings();
+    delay(300);
+    ESP.restart();
   }
 }
 
-
 // ---------- Wi-Fi ----------
+// Sem Wi-Fi salvo, o ESP32 cria a rede "Interruptor-Setup": conecte o celular nela
+// e escolha a rede da casa na página que abrir (ou acesse 192.168.4.1).
 
-void ensureWifi() {
-  if (WiFi.status() == WL_CONNECTED) return;
+void setupWifi() {
   digitalWrite(LED_PIN, LOW);
-  Serial.printf("[wifi] conectando em %s", WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  if (strlen(WIFI_SSID)) {
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  } else {
+    WiFiManager wm;
+    wm.setConfigPortalTimeout(300);
+    wm.setTitle("Interruptor Inteligente");
+    Serial.println("[wifi] sem conexão salva? abra a rede Interruptor-Setup no celular");
+    if (!wm.autoConnect("Interruptor-Setup")) {
+      Serial.println("[wifi] portal expirou, reiniciando");
+      ESP.restart();
+    }
+  }
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(300);
-    Serial.print(".");
-    handleButton();  // relé continua funcionando no botão sem Wi-Fi
+    handleButton();
   }
-  Serial.println(WiFi.status() == WL_CONNECTED ? " ok, IP " + WiFi.localIP().toString() : " sem conexão (tentando de novo)");
+  Serial.println(WiFi.status() == WL_CONNECTED ? "[wifi] ok, IP " + WiFi.localIP().toString() : "[wifi] sem conexão (tentando de novo)");
+}
+
+unsigned long lastWifiRetry = 0;
+
+void ensureWifi() {
+  if (WiFi.status() == WL_CONNECTED || millis() - lastWifiRetry < 10000) return;
+  lastWifiRetry = millis();
+  digitalWrite(LED_PIN, LOW);
+  Serial.println("[wifi] reconectando...");
+  WiFi.reconnect();
 }
 
 // ---------- Setup / loop ----------
@@ -183,7 +215,7 @@ void setup() {
   mqtt.setBufferSize(512);
   mqtt.setKeepAlive(15);
 
-  ensureWifi();
+  setupWifi();
 }
 
 void loop() {

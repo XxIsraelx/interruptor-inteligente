@@ -9,3 +9,4 @@ firmware/.pio
 firmware/include/secrets.h
 apps/web/out
 *.tsbuildinfo
+firmware/*.bin
