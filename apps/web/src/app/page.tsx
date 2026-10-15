@@ -77,7 +77,7 @@ function Dashboard() {
         <div className="xl:col-span-8">
           <ConsumptionByDevice devices={devices} colors={colors} />
         </div>
-        <div className="xl:col-span-4">
+        <div className="relative xl:col-span-4">
           <ActivityFeed devices={devices} colors={colors} />
         </div>
       </div>
