@@ -107,7 +107,8 @@ function DeviceView({ id }: { id: string }) {
         <div className="xl:col-span-8">
           <ConsumptionChart deviceId={device.id} color={color} />
         </div>
-        <div className="xl:col-span-4">
+        {/* a linha do tempo acompanha a altura do gráfico ao lado e rola por dentro */}
+        <div className="relative xl:col-span-4">
           <Timeline deviceId={device.id} />
         </div>
       </div>
