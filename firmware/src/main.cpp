@@ -17,7 +17,18 @@
 #include "config.h"
 #include "secrets.h"
 
-PZEM004Tv30 pzem(Serial2, PZEM_RX_PIN, PZEM_TX_PIN);
+// O PZEM é criado em setup(); se não responder, o firmware testa os pinos invertidos (fio TX/RX trocado).
+PZEM004Tv30 *pzemPtr = nullptr;
+#define pzem (*pzemPtr)
+int pzemRx = PZEM_RX_PIN, pzemTx = PZEM_TX_PIN;
+int pzemFails = 0;
+
+void beginPzem(int rx, int tx) {
+  if (pzemPtr) { delete pzemPtr; Serial2.end(); }
+  pzemRx = rx; pzemTx = tx;
+  pzemPtr = new PZEM004Tv30(Serial2, rx, tx);
+  Serial.printf("[pzem] usando RX=GPIO%d (TX do PZEM) e TX=GPIO%d (RX do PZEM)\n", rx, tx);
+}
 Preferences prefs;
 
 WiFiClient plainClient;
@@ -57,7 +68,16 @@ void setOrNull(JsonDocument &doc, const char *key, float value, int decimals) {
 
 void publishTelemetry() {
   JsonDocument doc;
-  setOrNull(doc, "v", pzem.voltage(), 1);
+  float volts = pzem.voltage();
+  if (std::isnan(volts)) {
+    if (++pzemFails % 3 == 0) {  // 3 falhas seguidas: tenta com os fios invertidos
+      Serial.println("[pzem] sem resposta — testando TX/RX invertidos");
+      beginPzem(pzemTx, pzemRx);
+    }
+  } else {
+    pzemFails = 0;
+  }
+  setOrNull(doc, "v", volts, 1);
   setOrNull(doc, "i", pzem.current(), 3);
   setOrNull(doc, "p", pzem.power(), 1);
   setOrNull(doc, "e", pzem.energy(), 4);  // kWh acumulado
@@ -192,13 +212,14 @@ void setup() {
   pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   prefs.begin("interruptor", false);
+  beginPzem(PZEM_RX_PIN, PZEM_TX_PIN);
   applyRelay(RESTORE_RELAY_STATE ? prefs.getBool("relay", false) : false);
 
   WiFi.mode(WIFI_STA);
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
+  // MAC gravado de fábrica (WiFi.macAddress() volta zerado antes do Wi-Fi iniciar no core 3.x)
+  uint64_t mac = ESP.getEfuseMac();  // bytes em ordem little-endian
   char id[20];
-  snprintf(id, sizeof(id), "esp32-%02x%02x%02x", mac[3], mac[4], mac[5]);
+  snprintf(id, sizeof(id), "esp32-%02x%02x%02x", (uint8_t)(mac >> 24), (uint8_t)(mac >> 32), (uint8_t)(mac >> 40));
   deviceId = strlen(DEVICE_ID) ? String(DEVICE_ID) : String(id);
   topicBase = String(TOPIC_PREFIX) + "/" + deviceId;
   Serial.printf("\nInterruptor Inteligente %s — id %s\n", FW_VERSION, deviceId.c_str());
